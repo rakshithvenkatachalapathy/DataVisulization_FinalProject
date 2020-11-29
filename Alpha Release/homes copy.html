@@ -162,8 +162,8 @@
         var path = d3.geo.path()
 
         queue()
-            .defer(d3.json, "states.json")
-            .defer(d3.csv, "us_county.csv")
+            .defer(d3.json, "https://github.com/rakshithvenkatachalapathy/DataVisulization_FinalProject/blob/main/Alpha%20Release/states.json")
+            .defer(d3.csv, "https://github.com/rakshithvenkatachalapathy/DataVisulization_FinalProject/blob/main/Alpha%20Release/us_county.csv")
             .await(ready);
 
         function ready(error, us, data) {
