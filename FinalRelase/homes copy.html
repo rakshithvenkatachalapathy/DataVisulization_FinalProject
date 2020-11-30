@@ -1,0 +1,726 @@
+<!-- https://observablehq.com/@d3/choropleth -->
+<!-- https://gka.github.io/palettes/#/13|s|788ef5,e7e4ff,efd6fb|ffffe0,ff005e,93003a|1|1 
+http://bl.ocks.org/diethardsteiner/3287802-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
+    <script type="text/javascript" src="http://d3js.org/queue.v1.min.js"></script>
+    <script type="text/javascript" src="http://d3js.org/topojson.v1.min.js"></script>
+
+</head>
+
+<!-- CSS -->
+<style>
+    path {
+        stroke: white;
+        stroke-width: 1px;
+    }
+    h1 {text-align: center;}
+
+    body {
+        font-family: 'Proxima Nova', sans-serif;
+    }
+
+    .county {
+        font: 14px sans-serif;
+        font-weight: bold;
+    }
+
+    .legend {
+        font-size: 14px;
+        font-family: 'Proxima Nova', sans-serif;
+    }
+
+    .legend_title {
+        font-size: 14px;
+        font-family: 'Proxima Nova', sans-serif;
+        font-weight: bold;
+    }
+
+    div.tooltip {
+        position: absolute;
+        left: 75px;
+        text-align: center;
+        height: 16px;
+        padding: 10px;
+        font-size: 14px;
+        background: #FFFFFF;
+        border: 1px solid #989898;
+        pointer-events: none;
+    }
+
+    .axisgrey path,
+    .axisgrey line {
+        fill: none;
+        stroke: grey;
+        stroke-width: 2;
+        shape-rendering: crispEdges;
+    }
+
+    p {
+        font-family: 'Proxima Nova', sans-serif;
+        font-size: 10px;
+        margin: 20px 0 0 10px;
+    }
+
+    @media (max-width: 400px) {
+        .d3map {
+            display: none;
+        }
+    }
+</style>
+
+<style>
+    body {
+        font-family: "Arial", sans-serif;
+    }
+
+    .bar {
+        fill: #5f89ad;
+    }
+
+    .axis {
+        font-size: 13px;
+    }
+
+    .axis path,
+    .axis line {
+        fill: none;
+        display: none;
+    }
+
+    .label {
+        font-size: 13px;
+    }
+
+    #graphic {
+        position: absolute;
+        top: 70px;
+        left: 380px;
+        height: 250px;
+    }
+</style>
+
+<style>
+    .bar {
+        fill: steelblue;
+    }
+
+    .bar:hover {
+        fill: lightblue;
+    }
+
+    .axis text {
+        font: 10px sans-serif;
+    }
+
+    /* .axis path,
+    .axis line {
+        fill: none;
+        stroke: #000;
+        shape-rendering: crispEdges;
+    } */
+
+    .x.axis path {
+        display: none;
+    }
+
+    .tooltip1 {
+        position: absolute;
+        padding: 10px;
+        font: 12px sans-serif;
+        background: #222;
+        color: #fff;
+        border: 0px;
+        border-radius: 8px;
+        pointer-events: none;
+        opacity: 0.9;
+        visibility: hidden;
+    }
+
+    .chart {
+        position: absolute;
+        top: 380px;
+        left: 900px;
+        height: 150px;
+    }
+</style>
+
+<style>
+    /* set the CSS */
+
+    body {
+        font: 12px Arial;
+    }
+
+    /* path {
+        stroke: steelblue;
+        stroke-width: 2;
+        fill: none;
+    } */
+
+    path {
+        stroke: white;
+        stroke-width: 1px;
+        fill: none;
+    }
+
+    .axis path,
+    .axis line {
+        fill: none;
+        stroke: grey;
+        stroke-width: 2;
+        shape-rendering: crispEdges;
+    }
+
+    /* .legend {
+        font-size: 16px;
+        font-weight: bold;
+        text-anchor: middle;
+    } */
+</style>
+
+<body>
+    <h1>County wise median home values in the USA</h1>
+    <div id="graphic"></div>
+    <script type="text/javascript">
+        var width = 960, height = 600, centered;
+
+        var color_domain = [50000, 100000, 150000, 200000, 250000, 500000, 750000]//[500, 10000, 30000, 50000, 70000, 90000, 120000, 200000, 300000, 500000, 700000, 900000]
+        var ext_color_domain = [0, 50000, 100000, 150000, 200000, 250000, 500000, 750000]//[0, 500, 10000, 30000, 50000, 70000, 90000, 120000, 200000, 300000, 500000, 700000, 900000]
+        var legend_labels = ["50000<", "50000+", "100000+", "150000+", "200000+", "250000+", "500000+", "750000+"]//["< 500", "500+", "10000+", "30000+", "50000+", "70000+", "90000+", "120000+", "200000+", "300000+", "500000+", "700000+", "900000+"]
+        var color = d3.scale.threshold()
+            .domain(color_domain)
+            .range(['#e9e9e9', '#aad9df', '#8dbfd4', '#74a6c9', '#5e8cbe', '#4873b3', '#2f5aa8', '#00429d'])
+
+
+        var div = d3.select("body").append("div")
+            .attr("class", "tooltip")
+            .style("opacity", 0);
+
+        var svg = d3.select("body").append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .style("margin", "-15px auto")
+
+        var formatComma = d3.format(",")
+
+        var path = d3.geo.path()
+
+
+        queue()
+            .defer(d3.json, "states.json")
+            .defer(d3.csv, "us_county.csv")
+            .await(ready);
+
+        function ready(error, us, data) {
+            var pairRateWithId = {};
+            var pairNameWithId = {};
+
+            //Moves selction to front
+            d3.selection.prototype.moveToFront = function () {
+                return this.each(function () {
+                    this.parentNode.appendChild(this);
+                });
+            };
+
+            //Moves selction to back
+            d3.selection.prototype.moveToBack = function () {
+                return this.each(function () {
+                    var firstChild = this.parentNode.firstChild;
+                    if (firstChild) {
+                        this.parentNode.insertBefore(this, firstChild);
+                    }
+                });
+            };
+
+            data.forEach(function (d) {
+                d.population = +d.population;
+                pairRateWithId[d.id] = +d.population;
+                pairNameWithId[d.id] = d.county;
+            });
+
+            var min1 = d3.min(data, function (d) { return d.population; });
+            var max1 = d3.max(data, function (d) { return d.population; });
+
+            svg.append("g")
+                .attr("class", "county")
+                .attr("id", "county")
+                .selectAll("path")
+                .data(topojson.feature(us, us.objects.counties).features)
+                .enter().append("path")
+                .attr("d", path)
+                .style("fill", function (d) {
+                    return color(pairRateWithId[d.id]);
+                })
+                .style("opacity", 0.8)
+                .on("mouseover", function (d) {
+                    var sel = d3.select(this);
+                    sel.moveToFront();
+                    d3.select(this).transition().duration(300).style({ 'opacity': 1, 'stroke': 'black', 'stroke-width': 1.5 });
+                    div.transition().duration(300)
+                        .style("opacity", 1)
+                    div.text(pairNameWithId[d.id] + ": $" + formatComma(pairRateWithId[d.id]))
+                        .style("left", (d3.event.pageX) + "px")
+                        .style("top", (d3.event.pageY - 30) + "px");
+                })
+                .on("mouseout", function () {
+                    var sel = d3.select(this);
+                    sel.moveToBack();
+                    d3.select(this)
+                        .transition().duration(300)
+                        .style({ 'opacity': 0.8, 'stroke': 'white', 'stroke-width': 1 });
+                    div.transition().duration(300)
+                        .style("opacity", 0);
+                })
+                .on("click", function (d) {
+                    vals = Object.keys(pairNameWithId).indexOf(d.id.toString())
+                    idx = Object.keys(pairNameWithId)[(vals - 1)]
+                    idx1 = Object.keys(pairNameWithId)[(vals + 1)]
+                    idx2 = Object.keys(pairNameWithId)[(vals + 2)]
+                    var ndata = [];
+                    var obj = { "name": pairNameWithId[idx], "value": pairRateWithId[idx] }
+                    var obj1 = { "name": pairNameWithId[idx1], "value": pairRateWithId[idx1] }
+                    var obj2 = { "name": pairNameWithId[idx2], "value": pairRateWithId[idx2] }
+                    ndata.push(obj)
+                    ndata.push(obj1)
+                    ndata.push(obj2)
+                    var sel = d3.select(this)
+                    d3.select(this).transition().duration(300).style({ 'opacity': 1, 'stroke': 'black', 'stroke-width': 1.5 });
+                    cName = pairNameWithId[d.id]
+                    bargraph(ndata)
+                    verticalBarGraph(cName)
+                    clicked(d)
+                })
+                .call(d3.behavior.zoom().on("zoom", function () {
+                    console.log("tra " + d3.event.translate)
+                    console.log("sca " + d3.event.scale)
+                    svg.attr("transform", "translate(" + "150,155" + ")" + " scale(" + "1.3" + ")")
+                }))
+
+        };
+
+        var legend = svg.selectAll("g.legend")
+            .data(ext_color_domain)
+            .enter().append("g")
+            .attr("class", "legend");
+
+        var ls_w = 73, ls_h = 20;
+
+        legend.append("rect")
+            .attr("x", function (d, i) { return 500 - (i * ls_w) - ls_w; })
+            .attr("y", 550)
+            .attr("width", ls_w)
+            .attr("height", ls_h)
+            .style("fill", function (d, i) { return color(d); })
+            .style("opacity", 0.8);
+
+        legend.append("text")
+            .attr("x", function (d, i) { return 520 - (i * ls_w) - ls_w; })
+            .attr("y", 590)
+            .text(function (d, i) { return legend_labels[i]; });
+
+        var legend_title = "Legand";
+
+        svg.append("text")
+            .attr("x", 10)
+            .attr("y", 540)
+            .attr("class", "legend_title")
+            .text(function () { return legend_title });
+
+        function verticalBarGraph(cname) {
+            d3.csv("alllines.csv", function (data) {
+                details = []
+
+                data.forEach(function (d) {
+                    d["Median Price"] = +d["Median Price"]
+                    if (d["Region Name"] == cname)
+                        details.push(d)
+                });
+
+                details = details.slice(-15)
+                // Chart Size Setup
+                var margin = { top: 35, right: 0, bottom: 30, left: 100 };
+
+                var width = 500 - margin.left - margin.right;
+                var height = 400 - margin.top - margin.bottom;
+
+
+
+                d3.select("#vbars").remove()
+
+                ///////////////////////
+                // Scales
+                var x = d3.scale.ordinal()
+                    .domain(details.map(function (d) { return d['Year']; }))
+                    .rangeRoundBands([0, width], .1);
+
+                var y = d3.scale.linear()
+                    .domain([0, d3.max(details, function (d) {
+                        return d["Median Price"];
+                    })]) //* 1.1
+                    .range([height, 0]);
+
+                var brush = d3.svg.brush()
+                    .extent([[0, 0], [width, height]])
+                    .x(x)
+                    .on("brush", brushed(x, brush))
+
+                var chart = d3.select(".chart")
+                    .append("svg")
+                    .attr("id", "vbars")
+                    .attr("width", 960)
+                    .attr("height", 500)
+                    .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")")
+                    .call(brush);
+
+
+                // Axis
+                var xAxis = d3.svg.axis()
+                    .scale(x)
+                    .orient("bottom");
+
+                var yAxis = d3.svg.axis()
+                    .scale(y)
+                    .orient("left");
+
+                chart.append("g")
+                    .attr("class", "x axis")
+                    .attr("transform", "translate(0," + height + ")")
+                    .call(xAxis);
+
+                chart.append("g")
+                    .attr("class", "y axis")
+                    .call(yAxis);
+
+                ///////////////////////
+                // Title
+                chart.append("text")
+                    .text('Price variation for past 15 years: ' + cname)
+                    .attr("text-anchor", "middle")
+                    .attr("class", "graph-title")
+                    .attr("y", -10)
+                    .attr("x", width / 2.0);
+
+                // Bars
+                var bar = chart.selectAll(".bar")
+                    .data(details)
+                    .enter().append("rect")
+                    .attr("class", "bar")
+                    .attr("x", function (d) { return x(d['Year']); })
+                    .attr("y", height)
+                    .attr("width", x.rangeBand())
+                    .attr("height", 0)
+                    .on("mouseover", function (d) {
+                        console.log(d)
+                        var sel = d3.select(this);
+                        sel.moveToFront();
+                        d3.select(this).transition().duration(300).style({ 'opacity': 1, 'stroke': 'black', 'stroke-width': 1.5 });
+                        div.transition().duration(300)
+                            .style("opacity", 1)
+                        div.text("$" + formatComma(d["Median Price"]))
+                            .style("left", (1100) + "px")
+                            .style("top", (420) + "px");
+                    })
+                    .on("mouseout", function () {
+                        var sel = d3.select(this);
+                        sel.moveToBack();
+                        d3.select(this)
+                            .transition().duration(300)
+                            .style({ 'opacity': 0.8, 'stroke': 'white', 'stroke-width': 1 });
+                        div.transition().duration(300)
+                            .style("opacity", 0);
+                    });
+
+                bar.transition()
+                    .duration(1500)
+                    .ease("elastic")
+                    .attr("y", function (d) { return y(d["Median Price"]); })
+                    .attr("height", function (d) { return height - y(d["Median Price"]); })
+
+                function brushed() {
+                    console.log("brushed")
+                    // var selected = null;
+                    // selected = x.domain()
+                    //     .filter(function (d) {
+                    //         return (brush.extent()[0] <= x(d)) && (x(d) <= brush.extent()[1]);
+                    //     });
+                }
+            });
+
+
+
+        }
+
+        function bargraph(citydata) {
+
+            var data = citydata
+
+            //set up svg using margin conventions - we'll need plenty of room on the left for labels
+            var margin = {
+                top: 15,
+                right: 75,
+                bottom: 25,
+                left: 560
+            };
+
+            var width = 900 - margin.left - margin.right,
+                height = 300 - margin.top - margin.bottom;
+
+            d3.select("#bargraph").remove()
+            var svg = d3.select("#graphic")//.remove()
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .attr("id", "bargraph")
+                .append("g")
+                .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+            var x = d3.scale.linear()
+                .range([0, width])
+                .domain([0, d3.max(data, function (d) {
+                    return d.value;
+                })]);
+
+            var y = d3.scale.ordinal()
+                .rangeRoundBands([height, 0], .1)
+                .domain(data.map(function (d) {
+                    return d.name;
+                }));
+
+            //make y axis to show bar names
+            var yAxis = d3.svg.axis()
+                .scale(y)
+                //no tick marks
+                .tickSize(0)
+                .orient("left");
+
+            var gy = svg.append("g")
+                .attr("class", "y axis")
+                .call(yAxis)
+
+            var bars = svg.selectAll(".bar")
+                .data(data)
+                .enter()
+                .append("g")
+
+            //append rects
+            bars.append("rect")
+                .attr("class", "bar")
+                .attr("y", function (d) {
+                    return y(d.name);
+                })
+                .attr("height", y.rangeBand())
+                .attr("x", 0)
+                .attr("width", function (d) {
+                    return x(d.value);
+                });
+
+            //add a value label to the right of each bar
+            bars.append("text")
+                .attr("class", "label")
+                //y position of the label is halfway down the bar
+                .attr("y", function (d) {
+                    return y(d.name) + y.rangeBand() / 2 + 4;
+                })
+                //x position is 3 pixels to the right of the bar
+                .attr("x", function (d) {
+                    return x(d.value) + 3;
+                })
+                .text(function (d) {
+                    return "$" + formatComma(d.value);
+                });
+
+            // var formatComma = d3.format(",")
+            bars.append("text")
+                .text('Medain home price in neighbouring counties ')
+                .attr("text-anchor", "middle")
+                .attr("class", "graph-title")
+                .attr("y", 0)
+                .attr("x", width / 2.0);
+
+        };
+        let g = d3.selectAll("path")
+
+        function clicked(d) {
+            console.log("clicked")
+        }
+
+
+        // Set the dimensions of the canvas / graph
+        var margin1 = { top: 30, right: 100, bottom: 70, left: 70 },
+            width1 = 1000 - margin1.left - margin1.right,
+            height1 = 500 - margin1.top - margin1.bottom;
+
+        // Parse the date / time
+        var parseDate1 = d3.time.format("%Y").parse;
+
+        // Set the ranges
+        var x1 = d3.time.scale().range([0, width1]);
+        var y1 = d3.scale.linear().range([height1, 0]);
+
+        // Define the axes
+        var xAxis1 = d3.svg.axis().scale(x1)
+            .orient("bottom").ticks(5);
+
+        var yAxis1 = d3.svg.axis().scale(y1)
+            .orient("left").ticks(5);
+
+        d3.selectAll(".x.axis line")
+            .style("stroke", "gray");
+
+
+        // Define the line
+        var priceline = d3.svg.line()
+            .x(function (d) { return x1(d.date); })
+            .y(function (d) { return y1(d.price); });
+
+        // Adds the svg canvas
+        var svg1 = d3.select("body")
+            .append("svg")
+            .attr("width", width1 + margin1.left + margin1.right)
+            .attr("height", height1 + margin1.top + margin1.bottom)
+            .append("g")
+            .attr("transform",
+                "translate(" + margin1.left + "," + margin1.top + ")");
+
+        // Get the data
+        d3.csv("5lines.csv", function (error, data) {
+            data.forEach(function (d) {
+                d.date = parseDate1(d.Year);
+                d.price = +d["Median Price"];
+            });
+
+            // Scale the range of the data
+            x1.domain(d3.extent(data, function (d) {
+
+                return d.date;
+            }));
+            y1.domain([0, d3.max(data, function (d) { return d.price; })]);
+
+            // Nest the entries by symbol
+            var dataNest = d3.nest()
+                .key(function (d) { return d["Region Name"]; })
+                .entries(data);
+
+
+
+            var color = d3.scale.category10();   // set the colour scale
+
+            legendSpace = width1 / dataNest.length; // spacing for legend
+
+
+            // Loop through each symbol / key
+            dataNest.forEach(function (d, i) {
+                var d1 = d
+                svg1.append("path")
+                    .attr("class", "line")
+                    .attr("id", "cityLine")
+                    .style("stroke", function () { // Add the colours dynamically
+                        return d.color = color(d.key);
+                    })
+                    .attr("d", priceline(d.values));
+
+                svg1.append("text")
+                    .attr("y", height1 + 20)
+                    .attr("x", width1 - 50)
+                    .attr("text-anchor", "end")
+                    .attr("stroke", "black")
+                    .text("Year")
+
+                svg1.append("text")
+                    .attr("transform", "rotate(-90)")
+                    .attr("y", 35)
+                    .attr("x", -55)
+                    .attr("dy", "-5.1em")
+                    .attr("text-anchor", "end")
+                    .attr("stroke", "black")
+                    .text("Median Price");
+
+                var siblingList, colorList;
+                // Add the Legend
+                svg1.append("text")
+                    .attr("x", (legendSpace / 2) + i * legendSpace) // spacing
+                    .attr("y", height1 + (margin1.bottom / 2) + 25)
+                    .attr("class", "legend")    // style the legend
+                    .style("fill", function () { // dynamic colours
+                        return d.color = color(d.key);
+                    })
+                    .text(d.key)
+                    .on("mouseover", function (d) {
+                        console.log("hover")
+
+
+                        var val = String(this.attributes["style"].value)
+                        val = val.replace("fill: ", "")
+
+
+                        var siblings = [];
+                        var sibling = this.parentNode.firstChild;
+                        var elem = this
+
+                        while (sibling) {
+                            if (sibling.nodeType === 1 && sibling !== elem && sibling.getAttribute("class") == "line") {
+                                sib = sibling.attributes["style"].value
+                                sib = sib.replace("stroke: ", "")
+
+                                if (sib == val) {
+                                    console.log("equal");
+                                }
+                                else {
+                                    //s colorList.push(sib);
+                                    siblings.push(sibling);
+                                }
+                            }
+                            sibling = sibling.nextSibling
+                        }
+                        console.log(siblings)
+                        console.log(colorList)
+                        siblingList = siblings
+                        var active = cityLine.active ? false : true,
+                            newOpacity = active ? 0 : 1;
+                        siblingList.forEach(element => {
+                            d3.select(element)
+                                .style("stroke", "#acada8");
+                            // Update whether or not the elements are active
+                            cityLine.active = active;
+                        });
+                    })
+                    .on('mouseout', function (d) {
+                        // d3.select("#cityLine").remove()
+                        d = d1;
+
+                        svg1.append("path")
+                            .attr("class", "line")
+                            .attr("id", "cityLine")
+                            .style("stroke", function () { // Add the colours dynamically
+                                return d.color = color(d.key);
+                            })
+                            .attr("d", priceline(d.values))
+
+                    })
+                    ;
+            });
+
+            // Add the X Axis
+            svg1.append("g")
+                .attr("class", "axisgrey")
+                .attr("transform", "translate(0," + height1 + ")")
+                .call(xAxis1);
+
+            // Add the Y Axis
+            svg1.append("g")
+                .attr("class", "axisgrey")
+                .call(yAxis1);
+        });
+    </script>
+
+    <div class="chart"></div>
+
+</body>
+
+</html>
