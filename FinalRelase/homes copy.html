@@ -212,8 +212,8 @@ http://bl.ocks.org/diethardsteiner/3287802-->
 
 
         queue()
-            .defer(d3.json, "states.json")
-            .defer(d3.csv, "us_county.csv")
+            .defer(d3.json, "https://github.com/rakshithvenkatachalapathy/DataVisulization_FinalProject/blob/main/FinalRelase/states.json")
+            .defer(d3.csv, "https://github.com/rakshithvenkatachalapathy/DataVisulization_FinalProject/blob/main/FinalRelase/us_county.csv")
             .await(ready);
 
         function ready(error, us, data) {
