@@ -14,6 +14,7 @@ http://bl.ocks.org/diethardsteiner/3287802-->
 </head>
 
 <!-- CSS -->
+<!-- CSS values for faramting tables, axis, colours -->
 <style>
     path {
         stroke: white;
@@ -182,7 +183,7 @@ http://bl.ocks.org/diethardsteiner/3287802-->
     <div id="graphic"></div>
     <script type="text/javascript">
         var width = 960, height = 600, centered;
-
+        //Color domain for the choropleth map
         var color_domain = [50000, 100000, 150000, 200000, 250000, 500000, 750000]//[500, 10000, 30000, 50000, 70000, 90000, 120000, 200000, 300000, 500000, 700000, 900000]
         var ext_color_domain = [0, 50000, 100000, 150000, 200000, 250000, 500000, 750000]//[0, 500, 10000, 30000, 50000, 70000, 90000, 120000, 200000, 300000, 500000, 700000, 900000]
         var legend_labels = ["50000<", "50000+", "100000+", "150000+", "200000+", "250000+", "500000+", "750000+"]//["< 500", "500+", "10000+", "30000+", "50000+", "70000+", "90000+", "120000+", "200000+", "300000+", "500000+", "700000+", "900000+"]
@@ -194,17 +195,17 @@ http://bl.ocks.org/diethardsteiner/3287802-->
         var div = d3.select("body").append("div")
             .attr("class", "tooltip")
             .style("opacity", 0);
-
+        //svg for the choropleth
         var svg = d3.select("body").append("svg")
             .attr("width", width)
             .attr("height", height)
             .style("margin", "-15px auto")
-
+        // for number formatting : Eg: $302,647
         var formatComma = d3.format(",")
 
         var path = d3.geo.path()
 
-
+        //loading the choropleth details: geolocations and values
         queue()
             .defer(d3.json, "https://raw.githubusercontent.com/rakshithvenkatachalapathy/DataVisulization_FinalProject/main/FinalRelase/states.json")
             .defer(d3.csv, "https://raw.githubusercontent.com/rakshithvenkatachalapathy/DataVisulization_FinalProject/main/FinalRelase/us_county.csv")
@@ -232,14 +233,15 @@ http://bl.ocks.org/diethardsteiner/3287802-->
             };
 
             data.forEach(function (d) {
+                //formatting the data from csv
                 d.population = +d.population;
                 pairRateWithId[d.id] = +d.population;
                 pairNameWithId[d.id] = d.county;
             });
-
+            //min and max of the data
             var min1 = d3.min(data, function (d) { return d.population; });
             var max1 = d3.max(data, function (d) { return d.population; });
-
+            // creating the svg objects for every county
             svg.append("g")
                 .attr("class", "county")
                 .attr("id", "county")
@@ -271,6 +273,7 @@ http://bl.ocks.org/diethardsteiner/3287802-->
                         .style("opacity", 0);
                 })
                 .on("click", function (d) {
+                    //on click , bargraphs apper on the screen
                     vals = Object.keys(pairNameWithId).indexOf(d.id.toString())
                     idx = Object.keys(pairNameWithId)[(vals - 1)]
                     idx1 = Object.keys(pairNameWithId)[(vals + 1)]
@@ -296,7 +299,7 @@ http://bl.ocks.org/diethardsteiner/3287802-->
                 }))
 
         };
-
+        //legend for the map
         var legend = svg.selectAll("g.legend")
             .data(ext_color_domain)
             .enter().append("g")
@@ -317,18 +320,18 @@ http://bl.ocks.org/diethardsteiner/3287802-->
             .attr("y", 590)
             .text(function (d, i) { return legend_labels[i]; });
 
-        var legend_title = "Legand";
+        var legend_title = "Legend";
 
         svg.append("text")
             .attr("x", 10)
             .attr("y", 540)
             .attr("class", "legend_title")
             .text(function () { return legend_title });
-
+        // function to plot the bar graph for price variation over the past 15 years for a paticular county
         function verticalBarGraph(cname) {
             d3.csv("alllines.csv", function (data) {
                 details = []
-
+                //price details for the county
                 data.forEach(function (d) {
                     d["Median Price"] = +d["Median Price"]
                     if (d["Region Name"] == cname)
@@ -357,7 +360,7 @@ http://bl.ocks.org/diethardsteiner/3287802-->
                         return d["Median Price"];
                     })]) //* 1.1
                     .range([height, 0]);
-
+                //brushing
                 var brush = d3.svg.brush()
                     .extent([[0, 0], [width, height]])
                     .x(x)
@@ -400,7 +403,7 @@ http://bl.ocks.org/diethardsteiner/3287802-->
                     .attr("y", -10)
                     .attr("x", width / 2.0);
 
-                // Bars
+                // Bar plotting
                 var bar = chart.selectAll(".bar")
                     .data(details)
                     .enter().append("rect")
@@ -449,7 +452,7 @@ http://bl.ocks.org/diethardsteiner/3287802-->
 
 
         }
-
+         //function to plot the bar graph for 3 neighbouring counties
         function bargraph(citydata) {
 
             var data = citydata
@@ -461,7 +464,7 @@ http://bl.ocks.org/diethardsteiner/3287802-->
                 bottom: 25,
                 left: 560
             };
-
+            //width and height
             var width = 900 - margin.left - margin.right,
                 height = 300 - margin.top - margin.bottom;
 
@@ -473,7 +476,7 @@ http://bl.ocks.org/diethardsteiner/3287802-->
                 .attr("id", "bargraph")
                 .append("g")
                 .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-
+            //axis scales
             var x = d3.scale.linear()
                 .range([0, width])
                 .domain([0, d3.max(data, function (d) {
@@ -544,7 +547,8 @@ http://bl.ocks.org/diethardsteiner/3287802-->
             console.log("clicked")
         }
 
-
+        //Code for plotting the multi line graph below
+        
         // Set the dimensions of the canvas / graph
         var margin1 = { top: 30, right: 100, bottom: 70, left: 70 },
             width1 = 1000 - margin1.left - margin1.right,
@@ -656,7 +660,8 @@ http://bl.ocks.org/diethardsteiner/3287802-->
                         var siblings = [];
                         var sibling = this.parentNode.firstChild;
                         var elem = this
-
+                        //selecting the siblings for the tag hovered on
+                        // for diabling color interactions
                         while (sibling) {
                             if (sibling.nodeType === 1 && sibling !== elem && sibling.getAttribute("class") == "line") {
                                 sib = sibling.attributes["style"].value
